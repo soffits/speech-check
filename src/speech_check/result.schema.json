@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "speech-check result",
+  "description": "Output of `speech-check analyze --format json`. schema_version 1. Within a version, fields are only added, never renamed, removed or re-typed; objects may therefore carry fields not listed here.",
+  "type": "object",
+  "required": ["schema_version", "tool", "input", "recording", "models", "reliability", "transcript", "fluency", "timing_s", "summary_text"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "tool": {"type": "object", "required": ["name", "version"], "properties": {"name": {"const": "speech-check"}, "version": {"type": "string"}}},
+    "input": {
+      "type": "object",
+      "required": ["file", "duration_s", "language", "mode"],
+      "properties": {
+        "file": {"type": "string", "description": "file name as given, without directories"},
+        "duration_s": {"type": "number"},
+        "language": {"enum": ["en", "fr"]},
+        "mode": {"enum": ["free_speech", "read_aloud"]},
+        "reference_text": {"type": ["string", "null"]},
+        "source": {"type": "object", "description": "codec, sample_rate, channels of the input when ffprobe is available"}
+      }
+    },
+    "recording": {
+      "type": "object",
+      "required": ["snr_db_estimate", "warnings"],
+      "properties": {
+        "peak_dbfs": {"type": "number"}, "speech_level_dbfs": {"type": "number"}, "noise_floor_dbfs": {"type": "number"},
+        "snr_db_estimate": {"type": "number"}, "clipped_fraction": {"type": "number"},
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "models": {
+      "type": "object",
+      "properties": {
+        "asr": {"type": "object", "properties": {"engine": {"type": "string"}, "model": {"type": "string"}, "compute_type": {"type": "string"}}},
+        "phones": {"type": ["string", "null"]},
+        "pitch": {"type": ["string", "null"]}
+      }
+    },
+    "reliability": {
+      "type": "object",
+      "description": "How far each signal can be trusted; read the note before using the numbers.",
+      "required": ["transcript", "fluency", "pronunciation", "intonation"],
+      "additionalProperties": {"$ref": "#/$defs/reliability"}
+    },
+    "transcript": {
+      "type": "object",
+      "required": ["text", "words", "sentences"],
+      "properties": {
+        "text": {"type": "string"},
+        "words": {"type": "array", "items": {"$ref": "#/$defs/word"}},
+        "sentences": {"type": "array", "items": {"type": "object", "required": ["text", "start", "end"],
+                      "properties": {"text": {"type": "string"}, "start": {"type": "number"}, "end": {"type": "number"}}}}
+      }
+    },
+    "fluency": {
+      "type": "object",
+      "required": ["available"],
+      "properties": {
+        "available": {"type": "boolean"},
+        "reason": {"type": "string"},
+        "speaking_span_s": {"type": "number"},
+        "leading_silence_s": {"type": "number"},
+        "trailing_silence_s": {"type": "number"},
+        "words": {"type": "integer"},
+        "syllables": {"type": "integer"},
+        "speech_rate_wpm": {"type": "number", "description": "words per minute over the speaking span, pauses included"},
+        "speech_rate_syll_per_s": {"type": "number"},
+        "articulation_rate_syll_per_s": {"type": "number", "description": "syllables per second excluding silent pauses"},
+        "phonation_time_ratio": {"type": "number"},
+        "mean_length_of_run_syllables": {"type": ["number", "null"]},
+        "mean_length_of_run_words": {"type": ["number", "null"]},
+        "pauses": {
+          "type": "object",
+          "properties": {
+            "threshold_s": {"type": "number"}, "long_threshold_s": {"type": "number"}, "count": {"type": "integer"},
+            "per_minute": {"type": "number"}, "mean_duration_s": {"type": "number"}, "longest_s": {"type": "number"},
+            "long_count": {"type": "integer"},
+            "by_position": {"$ref": "#/$defs/positionCounts"}, "long_by_position": {"$ref": "#/$defs/positionCounts"},
+            "long": {"type": "array", "items": {"$ref": "#/$defs/pause"}}
+          }
+        },
+        "fillers": {"type": "object", "properties": {"count": {"type": "integer"}, "per_minute": {"type": "number"}, "per_100_words": {"type": "number"},
+                    "items": {"type": "array", "items": {"type": "object", "properties": {"text": {"type": "string"}, "start": {"type": "number"}}}}}},
+        "repetitions": {"type": "object", "properties": {"count": {"type": "integer"},
+                        "items": {"type": "array", "items": {"type": "object", "properties": {"text": {"type": "string"}, "times": {"type": "integer"}, "start": {"type": "number"}, "units": {"type": "integer"}}}}}},
+        "self_corrections": {"type": "object", "properties": {"count": {"type": "integer"},
+                             "items": {"type": "array", "items": {"type": "object", "properties": {"type": {"enum": ["restart", "cut_off", "repair_phrase"]}, "text": {"type": "string"}, "start": {"type": "number"}}}}}},
+        "sentences": {"type": "integer"}
+      }
+    },
+    "pronunciation": {
+      "type": "object",
+      "description": "Present unless --no-pronunciation. Low reliability: read reliability.pronunciation.",
+      "required": ["available"],
+      "properties": {
+        "available": {"type": "boolean"},
+        "reason": {"type": "string"},
+        "mode": {"enum": ["free_speech", "read_aloud"]},
+        "words": {"type": "array", "items": {"$ref": "#/$defs/pronWord"}},
+        "flagged": {"type": "array", "items": {"$ref": "#/$defs/pronWord"}},
+        "patterns": {"type": "array", "description": "Phone errors grouped as expected -> heard; repeated=true means two or more occurrences, the most trustworthy signal.",
+                     "items": {"type": "object", "required": ["expected", "heard", "occurrences", "repeated"],
+                               "properties": {"expected": {"type": "string"}, "heard": {"type": "string"}, "occurrences": {"type": "integer"},
+                                              "words_count": {"type": "integer"}, "words": {"type": "array", "items": {"type": "string"}}, "repeated": {"type": "boolean"}}}},
+        "overall": {"type": "object", "properties": {"words_assessed": {"type": "integer"}, "words_flagged_likely": {"type": "integer"},
+                    "words_flagged_possible": {"type": "integer"}, "phone_error_rate": {"type": ["number", "null"]}}},
+        "reference": {"type": "object", "description": "read-aloud mode only: how the spoken words compare with the reference text",
+                      "properties": {"words_in_reference": {"type": "integer"}, "matched": {"type": "integer"}, "word_accuracy": {"type": ["number", "null"]},
+                                     "substituted": {"type": "array", "items": {"type": "object", "properties": {"expected": {"type": "string"}, "said": {"type": "string"}}}},
+                                     "omitted": {"type": "array", "items": {"type": "string"}}, "inserted": {"type": "array", "items": {"type": "string"}}}}
+      }
+    },
+    "intonation": {
+      "type": "object",
+      "description": "Present unless --no-intonation. Pitch statistics in semitones.",
+      "required": ["available"],
+      "properties": {
+        "available": {"type": "boolean"},
+        "reason": {"type": "string"},
+        "method": {"type": "string"},
+        "speaker_median_hz": {"type": "number"},
+        "overall": {"type": ["object", "null"], "properties": {"range_st": {"type": "number"}, "sd_st": {"type": "number"}, "voiced_s": {"type": "number"}}},
+        "sentences": {"type": "array", "items": {"$ref": "#/$defs/pitchSentence"}},
+        "summary": {"type": "object", "properties": {"sentences_total": {"type": "integer"}, "sentences_with_stable_pitch": {"type": "integer"},
+                    "median_sentence_range_st": {"type": ["number", "null"]}, "median_sentence_sd_st": {"type": ["number", "null"]}, "flat_sentences": {"type": "integer"}}}
+      }
+    },
+    "timing_s": {"type": "object", "required": ["total"], "additionalProperties": {"type": "number"}},
+    "summary_text": {"type": "string", "description": "the readable summary printed by default"}
+  },
+  "$defs": {
+    "reliability": {"type": "object", "required": ["level", "note"], "properties": {"level": {"enum": ["high", "medium", "low", "very_low"]}, "note": {"type": "string"}}},
+    "word": {
+      "type": "object",
+      "required": ["i", "text", "start", "end", "kind"],
+      "properties": {
+        "i": {"type": "integer", "description": "index in transcript.words; pronunciation.words[].asr_index points here"},
+        "text": {"type": "string", "description": "as written by the ASR, punctuation included; fillers look like [UM]"},
+        "start": {"type": "number"}, "end": {"type": "number"},
+        "confidence": {"type": ["number", "null"], "description": "ASR probability 0-1"},
+        "kind": {"enum": ["word", "filler", "cutoff", "sound"]}
+      }
+    },
+    "positionCounts": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "keys: within_clause, between_clauses, between_sentences, after_filler"},
+    "pause": {
+      "type": "object",
+      "required": ["start", "end", "duration", "position"],
+      "properties": {"start": {"type": "number"}, "end": {"type": "number"}, "duration": {"type": "number"},
+                     "position": {"enum": ["within_clause", "between_clauses", "between_sentences", "after_filler"]},
+                     "after_word": {"type": "string"}, "before_word": {"type": "string"}, "context": {"type": "string", "description": "words around the pause, '|' marks it"}}
+    },
+    "pronWord": {
+      "type": "object",
+      "required": ["word", "asr_index", "start", "end", "expected", "heard", "error_confidence", "flag"],
+      "properties": {
+        "word": {"type": "string"}, "asr_index": {"type": "integer"}, "start": {"type": "number"}, "end": {"type": "number"},
+        "asr_confidence": {"type": ["number", "null"]},
+        "expected": {"type": "string", "description": "espeak-ng phones (IPA) separated by spaces"},
+        "heard": {"type": "string", "description": "phones the recogniser heard in context"},
+        "context_free_heard": {"type": "string", "description": "phones heard when the word was decoded alone; present only when it changed the result"},
+        "error_confidence": {"type": "number", "description": "0-1, summed confidence that phones of the word are wrong"},
+        "flag": {"enum": ["likely", "possible", null]},
+        "phones": {"type": "array", "items": {"type": "object", "required": ["expected", "heard", "error_confidence"],
+                   "properties": {"expected": {"type": "string"}, "heard": {"type": "string"}, "error_confidence": {"type": "number"}, "source": {"enum": ["context", "context_free"]}}}}
+      }
+    },
+    "pitchSentence": {
+      "type": "object",
+      "required": ["text", "start", "end", "reliable"],
+      "properties": {
+        "text": {"type": "string"}, "start": {"type": "number"}, "end": {"type": "number"}, "voiced_s": {"type": "number"},
+        "ends_with": {"enum": ["question", "statement"]}, "reliable": {"type": "boolean"}, "note": {"type": "string"},
+        "range_st": {"type": "number", "description": "5th to 95th percentile of pitch, semitones"}, "sd_st": {"type": "number"},
+        "median_hz": {"type": "number"}, "flat": {"type": "boolean"},
+        "final_movement_st": {"type": ["number", "null"]}, "final_contour": {"enum": ["rising", "falling", "level", null]}
+      }
+    }
+  }
+}

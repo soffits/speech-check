@@ -1,0 +1,50 @@
+[project]
+name = "speech-check"
+version = "0.1.0"
+description = "Local analysis of a speaking-practice recording: verbatim transcript, fluency, phone-level pronunciation hints and intonation, as JSON for a text-only assistant"
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Sakina" }]
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "numpy>=2.0",
+    "torch>=2.4",
+    "transformers>=4.50",
+    "phonemizer-fork>=3.3",
+    "espeakng-loader>=0.2",
+    "praat-parselmouth>=0.4.5",
+    "rapidfuzz>=3.9",
+    "crisperwhisper[ct2,convert]>=2.1.0",
+]
+
+[project.scripts]
+speech-check = "speech_check.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "soundfile>=0.12",
+    "piper-tts>=1.3",
+    "jsonschema>=4",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/speech_check"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: needs downloaded models and a Piper voice (see tests/test_integration.py)"]
+addopts = "-m 'not integration'"
